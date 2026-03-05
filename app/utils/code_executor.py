@@ -12,6 +12,9 @@ FORBIDDEN_PATTERNS = [
     r"\bexec\b",
     r"\bopen\b",
     r"\b__\b",
+    r"\.plot\b",
+    r"matplotlib",
+    r"plt\.",
 ]
 
 
@@ -33,6 +36,15 @@ class CodeExecutor:
         # Auto-fix missing assignment BEFORE validation
         if "result" not in code:
             code = f"result = {code.strip()}"
+        
+        # Remove accidental to_json usage
+        if ".to_json" in code:
+            code = code.split(".to_json")[0]
+        
+        # Remove plotting if accidentally generated
+        code = re.sub(r"\.plot\(.*?\)", "", code)
+        code = re.sub(r"plt\..*", "", code)
+        
 
         # Validate after fixing
         CodeExecutor.validate_code(code)

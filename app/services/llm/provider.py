@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.services.llm.base import LLMProvider
 
 
+
 class GenericLLMProvider(LLMProvider):
 
     def __init__(self):
@@ -19,29 +20,48 @@ class GenericLLMProvider(LLMProvider):
     async def generate_structured(self, prompt: str) -> Dict[str, Any]:
 
         system_prompt = """
-        You are a senior data analyst.
+        You are a senior data analyst writing pandas transformations.
         
-        IMPORTANT RULES:
-        1. Do NOT import any libraries.
-        2. Do NOT generate plotting code.
-        3. Only write pandas transformation code.
-        4. The final output MUST be assigned to variable named 'result'.
-        5. Assume a pandas DataFrame named 'df' already exists.
-        6. Return ONLY valid JSON.
-        7. No markdown.
-        8. No explanation.
+        STRICT RULES:
         
-        Return strictly this format:
+        1. Assume a pandas DataFrame named df already exists.
+        2. Do not import any libraries.
+        3. The final output must be assigned to variable named result.
+        4. result must be a pandas DataFrame.
+        5. Prefer the simplest pandas transformation that answers the question.
+        6. Avoid unnecessary groupby, merge, or joins unless explicitly required.
+        7. When selecting top N within groups, use:
+           groupby(...).sum().reset_index().sort_values(...).groupby(...).head(N)
+           Do NOT use nlargest(level=...)
+        
+        Return ONLY valid JSON.
+        
+        Format:
         
         {
-          "analysis_code": "pandas code only",
-          "chart_type": "bar | line | pie | scatter",
-          "x_column": "column_name",
-          "y_column": "column_name",
-          "insights": "clear business insight explanation"
+         "analysis_code": "pandas code assigning to result",
+         "chart_type": "bar | line | pie | scatter",
+         "x_column": "column name",
+         "y_column": "column name",
+         "insights": "short business insight"
+        }
+        
+        Example:
+        
+        User Question:
+        Top 5 products country wise
+        
+        Correct Response:
+        
+        {
+         "analysis_code": "result = df.groupby(['Country','Product'])['Sales'].sum().reset_index().sort_values(['Country','Sales'], ascending=[True, False]).groupby('Country').head(5)",
+         "chart_type": "bar",
+         "x_column": "Product",
+         "y_column": "Sales",
+         "insights": "This shows the top performing products within each country."
         }
         """
-
+        
         response = await self.client.chat.completions.create(
             model=self.model,
             temperature=0.2,
@@ -67,3 +87,21 @@ class GenericLLMProvider(LLMProvider):
                 "y_column": "",
                 "insights": "Model returned invalid JSON. Fallback used."
             }
+    
+    async def generate_text(self, prompt: str) -> str:
+            """
+            Generate plain text response from the LLM.
+            Used for insights generation.
+            """
+
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful data analyst."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3
+            )
+
+            content = response.choices[0].message.content
+            return content if content is not None else ""
