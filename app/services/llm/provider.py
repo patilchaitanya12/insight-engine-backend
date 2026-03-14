@@ -1,3 +1,4 @@
+
 import json
 from typing import Dict, Any
 
@@ -65,6 +66,7 @@ class GenericLLMProvider(LLMProvider):
         response = await self.client.chat.completions.create(
             model=self.model,
             temperature=0.2,
+            response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
@@ -79,7 +81,6 @@ class GenericLLMProvider(LLMProvider):
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
-            # fallback minimal safe structure
             return {
                 "analysis_code": "result = df.head()",
                 "chart_type": "bar",
@@ -89,19 +90,19 @@ class GenericLLMProvider(LLMProvider):
             }
     
     async def generate_text(self, prompt: str) -> str:
-            """
-            Generate plain text response from the LLM.
-            Used for insights generation.
-            """
 
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful data analyst."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3
-            )
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "You are a helpful data analyst."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3
+        )
 
-            content = response.choices[0].message.content
-            return content if content is not None else ""
+        content = response.choices[0].message.content
+
+        if content:
+            content = content.replace("```json", "").replace("```", "").strip()
+
+        return content or ""

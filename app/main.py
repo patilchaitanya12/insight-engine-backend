@@ -4,6 +4,8 @@ from app.api import upload
 from app.api import query
 from fastapi.middleware.cors import CORSMiddleware
 
+import logging
+
 app = FastAPI(
     title="Insight Engine",
     version="0.1.0",
@@ -25,3 +27,8 @@ app.include_router(query.router, prefix="/query", tags=["Query"])
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+    
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
