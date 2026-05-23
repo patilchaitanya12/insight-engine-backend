@@ -6,6 +6,14 @@ This backend is built using **FastAPI**, integrates with an **LLM for analysis p
 
 ---
 
+## Live API
+🚀 https://insight-engine-backend.onrender.com
+
+## Docs
+📖 https://insight-engine-backend.onrender.com/docs
+
+---
+
 ## Features
 
 * Natural language data queries
