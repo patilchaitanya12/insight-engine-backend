@@ -32,3 +32,12 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
+
+@app.get("/")
+def root():
+    return {
+        "message": "Welcome to Insight Engine API",
+        "description": "AI-powered analytics backend",
+        "version": "0.1.0",
+        "docs": "/docs"
+    }
