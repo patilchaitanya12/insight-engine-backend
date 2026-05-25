@@ -28,6 +28,27 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+# ── Shared chart hint extractor ──────────────────────────────────────────────
+
+def extract_chart_hint(question_lower: str) -> str | None:
+    chart_hints = {
+        "grouped bar": "grouped_bar",
+        "grouped_bar": "grouped_bar",
+        "bar chart": "bar",
+        "bar graph": "bar",
+        "line chart": "line",
+        "line graph": "line",
+        "area chart": "line",
+        "pie chart": "pie",
+        "pie graph": "pie",
+        "trend chart": "line",
+    }
+    for hint, chart_type in chart_hints.items():
+        if hint in question_lower:
+            return chart_type
+    return None
+
+
 async def run_query_service(dataset_id: str, question: str):
 
     logger.info("===== NEW QUERY =====")
@@ -61,6 +82,9 @@ async def run_query_service(dataset_id: str, question: str):
     provider = get_llm_provider()
 
     question_lower = question.lower()
+
+    # Extract chart hint once — used across all engines
+    user_chart_hint = extract_chart_hint(question_lower)
 
     # -------------------------------
     # Formula Engine
@@ -99,13 +123,13 @@ async def run_query_service(dataset_id: str, question: str):
             "data": result.to_dict("records")
         }
 
-        chart_type = "bar"
+        chart_type = user_chart_hint or "bar"
 
-        insights = await generate_insights(
-            provider,
-            result,
-            question
-        )
+        group_by = None
+        if chart_type == "grouped_bar" and len(schema.get("dimensions", [])) > 1:
+            group_by = schema["dimensions"][1]
+
+        insights = await generate_insights(provider, result, question)
 
         return {
             "table": execution_result,
@@ -113,7 +137,7 @@ async def run_query_service(dataset_id: str, question: str):
                 "chart_type": chart_type,
                 "x_column": dimension,
                 "y_column": formula_metric,
-                "group_by": None
+                "group_by": group_by
             },
             "insights": insights
         }
@@ -140,7 +164,6 @@ async def run_query_service(dataset_id: str, question: str):
                     break
 
         if not metric_a or not metric_b:
-
             planned_cols = [c for c in metric_cols if "plan" in c.lower()]
             actual_cols = [c for c in metric_cols if "actual" in c.lower()]
 
@@ -166,13 +189,13 @@ async def run_query_service(dataset_id: str, question: str):
                 "data": result.to_dict("records")
             }
 
-            chart_type = "bar"
+            chart_type = user_chart_hint or "bar"
 
-            insights = await generate_insights(
-                provider,
-                result,
-                question
-            )
+            group_by = None
+            if chart_type == "grouped_bar" and len(schema.get("dimensions", [])) > 1:
+                group_by = schema["dimensions"][1]
+
+            insights = await generate_insights(provider, result, question)
 
             return {
                 "table": execution_result,
@@ -180,7 +203,7 @@ async def run_query_service(dataset_id: str, question: str):
                     "chart_type": chart_type,
                     "x_column": dimension,
                     "y_column": "Difference",
-                    "group_by": None
+                    "group_by": group_by
                 },
                 "insights": insights
             }
@@ -194,9 +217,7 @@ async def run_query_service(dataset_id: str, question: str):
     similar = await search_similar_query(db, dataset_id, question)
 
     if similar and similar.get("plan"):
-
         cached_plan = similar["plan"]
-
         if cached_plan.get("metric"):
             plan = cached_plan
             steps = [{"task": question}]
@@ -206,13 +227,7 @@ async def run_query_service(dataset_id: str, question: str):
         steps = None
 
     if steps is None:
-
-        steps = await decompose_query(
-            provider,
-            question,
-            schema_context
-        )
-
+        steps = await decompose_query(provider, question, schema_context)
         if not isinstance(steps, list):
             steps = [{"task": question}]
 
@@ -225,7 +240,6 @@ async def run_query_service(dataset_id: str, question: str):
         logger.info(f"Processing step: {step}")
 
         if plan is None or i > 0:
-
             plan = await generate_query_plan(
                 provider,
                 step.get("task", question),
@@ -242,21 +256,14 @@ async def run_query_service(dataset_id: str, question: str):
         dimension = plan.get("dimension")
 
         if not metric:
-
-            best_metric = select_best_metric(
-                question,
-                schema.get("metrics", [])
-            )
-
+            best_metric = select_best_metric(question, schema.get("metrics", []))
             if best_metric:
                 plan["metric"] = best_metric
                 metric = best_metric
 
         if "across" in question_lower or "by" in question_lower:
-
             for dim in schema.get("dimensions", []):
                 if dim.lower() in question_lower:
-
                     plan["dimension"] = dim
                     plan["group_by"] = None
                     plan["trend"] = False
@@ -267,16 +274,12 @@ async def run_query_service(dataset_id: str, question: str):
             plan["dimension"] = dimension
 
         if not metric and plan.get("aggregation") == "count":
-
             dimension = plan.get("dimension")
-
             if dimension:
                 plan["metric"] = dimension
 
         if ("trend" in question_lower or "over time" in question_lower) and schema.get("time_columns"):
-
             plan["dimension"] = schema["time_columns"][0]
-
             if not plan.get("metric") and schema.get("metrics"):
                 plan["metric"] = schema["metrics"][0]
 
@@ -289,20 +292,18 @@ async def run_query_service(dataset_id: str, question: str):
         if "top" not in question_lower and "highest" not in question_lower:
             plan["top_k"] = None
 
+        # Apply user chart hint to plan
+        if user_chart_hint:
+            plan["chart_type"] = user_chart_hint
+            logger.info(f"Chart type override from user: {user_chart_hint}")
+
         code = generate_pandas_code(plan).strip()
 
         try:
-
-            execution_result = CodeExecutor.execute(
-                code,
-                df
-            )
-
+            execution_result = CodeExecutor.execute(code, df)
         except Exception as e:
-
             logger.error(code)
             logger.exception(e)
-
             return {
                 "error": "AI generated invalid analysis logic.",
                 "details": str(e)
@@ -313,25 +314,14 @@ async def run_query_service(dataset_id: str, question: str):
     result_df = df
 
     try:
-
         if plan and plan.get("comparison") in ["drop", "growth"] and "Date" in dataset["data"][0]:
-
             metric = plan.get("metric")
             dimension = plan.get("dimension")
-
-            change_df = compute_change_metric(
-                result_df,
-                metric,
-                dimension,
-                "Date"
-            )
-
+            change_df = compute_change_metric(result_df, metric, dimension, "Date")
             if plan.get("comparison") == "drop":
                 find_biggest_drop(change_df)
-
             if plan.get("comparison") == "growth":
                 find_biggest_growth(change_df)
-
     except Exception:
         pass
 
@@ -345,14 +335,11 @@ async def run_query_service(dataset_id: str, question: str):
         x_column = "Date"
 
     if not x_column or not y_column:
-
         numeric_cols = result_df.select_dtypes(include=["number"]).columns.tolist()
         categorical_cols = result_df.select_dtypes(exclude=["number"]).columns.tolist()
-
         if categorical_cols and numeric_cols:
             x_column = categorical_cols[0]
             y_column = numeric_cols[0]
-
         elif len(result_df.columns) >= 2:
             x_column = result_df.columns[0]
             y_column = result_df.columns[1]
@@ -369,14 +356,9 @@ async def run_query_service(dataset_id: str, question: str):
         plan
     )
 
-    insights = await generate_insights(
-        provider,
-        result_df,
-        question
-    )
+    insights = await generate_insights(provider, result_df, question)
 
     if plan and plan.get("metric"):
-
         await db.query_history.insert_one({
             "dataset_id": dataset_id,
             "question": question,
