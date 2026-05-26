@@ -27,18 +27,23 @@ from app.utils.dimension_ranker import choose_best_dimension
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
-# ── Shared chart hint extractor ──────────────────────────────────────────────
-
 def extract_chart_hint(question_lower: str) -> str | None:
     chart_hints = {
         "grouped bar": "grouped_bar",
         "grouped_bar": "grouped_bar",
+        "stacked bar": "stacked_bar",
+        "stacked_bar": "stacked_bar",
         "bar chart": "bar",
         "bar graph": "bar",
         "line chart": "line",
         "line graph": "line",
-        "area chart": "line",
+        "multi line": "multi_line",
+        "multiple lines": "multi_line",
+        "area chart": "area",
+        "area graph": "area",
+        "scatter chart": "scatter",
+        "scatter plot": "scatter",
+        "correlation": "scatter",
         "pie chart": "pie",
         "pie graph": "pie",
         "trend chart": "line",
