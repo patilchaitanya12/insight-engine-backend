@@ -2,8 +2,9 @@ name: Keep Render Alive
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
+    # Every 14 min, 10am–7pm IST (4:30–13:30 UTC), Mon–Sat
+    - cron: '*/14 4-13 * * 1-6'
+  workflow_dispatch: # keep manual trigger for testing
 
 jobs:
   ping:
