@@ -23,6 +23,7 @@ from app.utils.chart_selector import select_chart
 from app.utils.schema_builder import build_schema_context
 from app.utils.metric_selector import select_best_metric
 from app.utils.dimension_ranker import choose_best_dimension
+from rapidfuzz import fuzz
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -232,18 +233,37 @@ async def run_query_service(dataset_id: str, question: str):
         steps = None
 
     if steps is None:
-        steps = await decompose_query(provider, question, schema_context)
-        if not isinstance(steps, list):
+        raw_steps = await decompose_query(provider, question, schema_context)
+        if not isinstance(raw_steps, list):
+            raw_steps = [{"task": question}]
+
+        # Unwrap nested steps: decomposer sometimes returns [{steps:[...], task:"..."}]
+        # instead of a flat list. Flatten it so each inner step becomes a top-level step.
+        steps = []
+        for s in raw_steps:
+            if isinstance(s, dict) and "steps" in s and isinstance(s["steps"], list):
+                for inner in s["steps"]:
+                    if isinstance(inner, dict):
+                        if "task" not in inner:
+                            inner["task"] = s.get("task", question)
+                        steps.append(inner)
+            else:
+                steps.append(s)
+
+        if not steps:
             steps = [{"task": question}]
 
     logger.info(f"Decomposed steps: {steps}")
 
     execution_result = {"data": []}
+    original_df = df.copy()  # preserve original — never mutate between steps
 
     for i, step in enumerate(steps[:2]):
 
         logger.info(f"Processing step: {step}")
 
+        # Always plan against the original question, not the step sub-task,
+        # so the planner has full schema context on every iteration.
         if plan is None or i > 0:
             plan = await generate_query_plan(
                 provider,
@@ -254,6 +274,10 @@ async def run_query_service(dataset_id: str, question: str):
 
         if not isinstance(plan, dict):
             continue
+
+        # Always execute against original_df so all columns are available.
+        # The multi-step loop is for planning refinement, not chained transforms.
+        df = original_df.copy()
 
         plan = choose_best_dimension(df, plan, schema)
 
@@ -266,13 +290,47 @@ async def run_query_service(dataset_id: str, question: str):
                 plan["metric"] = best_metric
                 metric = best_metric
 
-        if "across" in question_lower or "by" in question_lower:
-            for dim in schema.get("dimensions", []):
-                if dim.lower() in question_lower:
-                    plan["dimension"] = dim
-                    plan["group_by"] = None
-                    plan["trend"] = False
-                    break
+        if "across" in question_lower or "by" in question_lower or "each" in question_lower:
+            # rapidfuzz partial_ratio: scores how much of dim name appears in question.
+            # Threshold 75 catches plurals, underscores, partial words
+            # e.g. "Category"  vs "categories"       → ~89
+            #      "Member"    vs "members"           → ~91
+            #      "Is_Essential" vs "essential"      → ~82
+            #      "Payment_Mode" vs "payment mode"   → ~87
+            FUZZY_THRESHOLD = 75
+
+            def dim_score(dim: str, text: str) -> int:
+                # Clean underscores so "Payment_Mode" → "payment mode"
+                dim_clean = dim.lower().replace("_", " ")
+                return max(
+                    fuzz.partial_ratio(dim_clean, text),
+                    fuzz.partial_ratio(dim.lower(), text),
+                )
+
+            scored_dims = [
+                (dim, dim_score(dim, question_lower))
+                for dim in schema.get("dimensions", [])
+            ]
+            logger.info(f"Dimension fuzzy scores: {scored_dims}")
+
+            matched_dims = [
+                dim for dim, score in scored_dims
+                if score >= FUZZY_THRESHOLD
+            ]
+            logger.info(f"Matched dimensions from question: {matched_dims}")
+
+            if len(matched_dims) >= 2:
+                # e.g. "by each member across different categories"
+                # → dimension=first matched, group_by=second matched, grouped_bar
+                plan["dimension"] = matched_dims[0]
+                plan["group_by"] = matched_dims[1]
+                plan["chart_type"] = "grouped_bar"
+                plan["trend"] = False
+                logger.info(f"Multi-dim query: dimension={matched_dims[0]}, group_by={matched_dims[1]}")
+            elif len(matched_dims) == 1:
+                plan["dimension"] = matched_dims[0]
+                plan["group_by"] = None
+                plan["trend"] = False
 
         if isinstance(dimension, str) and "," in dimension:
             dimension = [d.strip() for d in dimension.split(",")]
@@ -314,9 +372,7 @@ async def run_query_service(dataset_id: str, question: str):
                 "details": str(e)
             }
 
-        df = pd.DataFrame(execution_result["data"])
-
-    result_df = df
+    result_df = pd.DataFrame(execution_result["data"]) if execution_result.get("data") else original_df
 
     try:
         if plan and plan.get("comparison") in ["drop", "growth"] and "Date" in dataset["data"][0]:

@@ -13,22 +13,23 @@ Your job is to break a user question into analytical steps.
 DATASET SCHEMA
 {schema_context}
 
-IMPORTANT RULES:
+CRITICAL RULES:
+1. Return ONLY a valid JSON ARRAY. No other text.
+2. The outermost structure MUST be a JSON array [ ... ].
+3. Do NOT wrap the array inside an object like {{"steps": [...]}}.
+4. Each element must have a "task" field.
+5. If the question is simple, return a single-element array.
 
-1. Return ONLY valid JSON.
-2. Output MUST be a JSON ARRAY.
-3. Each step must contain a "task".
-4. Do not include explanations.
-5. If the question is simple, return one step.
+WRONG output (never do this):
+{{"steps": [{{"step": 1, "task": "..."}}], "task": "..."}}
 
-Correct output format example:
-
+CORRECT output (always do this):
 [
   {{
     "step": 1,
-    "task": "aggregate production by plant",
-    "metric": "Actual_Qty",
-    "dimension": "Plant"
+    "task": "aggregate revenue by dish",
+    "metric": "Revenue",
+    "dimension": "Dish"
   }}
 ]
 
@@ -40,26 +41,33 @@ User Question:
 
     logger.info(f"Raw decomposition output: {steps}")
 
-    # Safety: ensure list
+    # Safety: if LLM still returns a dict despite instructions, unwrap it
     if isinstance(steps, dict):
-        logger.warning("Decomposer returned dict instead of list, wrapping")
-        steps = [steps]
+        logger.warning("Decomposer returned dict instead of list, unwrapping")
+        # Try to extract inner steps list
+        if "steps" in steps and isinstance(steps["steps"], list):
+            inner = steps["steps"]
+            task  = steps.get("task", question)
+            steps = []
+            for s in inner:
+                if isinstance(s, dict):
+                    if "task" not in s:
+                        s["task"] = task
+                    steps.append(s)
+        else:
+            steps = [{"task": steps.get("task", question)}]
 
     if not isinstance(steps, list):
         logger.warning("Invalid decomposition output, fallback to single step")
         return [{"task": question}]
 
-    # Ensure each step has task
+    # Ensure each step has a task
     cleaned_steps = []
-
     for step in steps:
-
         if not isinstance(step, dict):
             continue
-
-        if "task" not in step:
+        if "task" not in step or not step["task"]:
             step["task"] = question
-
         cleaned_steps.append(step)
 
     if not cleaned_steps:
