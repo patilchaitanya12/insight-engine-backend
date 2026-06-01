@@ -2,9 +2,10 @@ name: Keep Render Alive
 
 on:
   schedule:
-    # Every 14 min, 10am–7pm IST (4:30–13:30 UTC), Mon–Sat
-    - cron: '*/14 4-13 * * 1-6'
-  workflow_dispatch: # keep manual trigger for testing
+    # Every 10 min, 10am–7pm IST (4:30–13:30 UTC), Mon–Sat
+    # 10 min gives buffer against GitHub Actions queue delays
+    - cron: '*/10 4-13 * * 1-6'
+  workflow_dispatch:
 
 jobs:
   ping:
@@ -12,5 +13,5 @@ jobs:
     steps:
       - name: Ping Render Backend
         run: |
-          curl -s https://insight-engine-backend.onrender.com/health
+          curl -s --max-time 30 https://insight-engine-backend.onrender.com/health
           echo "Pinged at $(date)"
