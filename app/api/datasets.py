@@ -1,9 +1,10 @@
 import os
 import logging
 from pathlib import Path
+from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, HTTPException
 
-from app.services.upload_service import upload_dataset_service
+from app.services.upload_stream_service import upload_dataset_stream
 
 logger = logging.getLogger(__name__)
 
@@ -22,44 +23,32 @@ SAMPLE_REGISTRY = {
 }
 
 
-@router.post("/{name}")
+@router.get("/{name}")
 async def load_sample_dataset(name: str):
     """
     Loads a pre-built sample dataset by name and runs it through
     the normal upload pipeline — returns dataset_id + suggestions.
     """
     filename = SAMPLE_REGISTRY.get(name)
-
     if not filename:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Sample '{name}' not found. Available: {list(SAMPLE_REGISTRY.keys())}"
-        )
+        raise HTTPException(status_code=404, detail=f"Sample '{name}' not found.")
 
     file_path = SAMPLES_DIR / filename
-
     if not file_path.exists():
-        logger.error(f"Sample file not found on disk: {file_path}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Sample file '{filename}' not found on server."
-        )
+        raise HTTPException(status_code=500, detail=f"Sample file not found on server.")
 
-    logger.info(f"Loading sample dataset: {name} → {filename}")
+    contents = file_path.read_bytes()
 
-    # Wrap as a file-like object matching FastAPI's UploadFile interface
-    class FakeUploadFile:
-        def __init__(self, path: Path):
-            self.filename = path.name
-            self._contents = path.read_bytes()
+    async def event_generator():
+        async for event in upload_dataset_stream(filename, contents):
+            yield event
 
-        async def read(self) -> bytes:
-            return self._contents
-
-    fake_file = FakeUploadFile(file_path)
-    result = await upload_dataset_service(fake_file)
-
-    if result.get("error"):
-        raise HTTPException(status_code=500, detail=result["error"])
-
-    return result
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
