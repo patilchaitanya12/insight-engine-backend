@@ -1,7 +1,37 @@
 import json
 import logging
+from rapidfuzz import fuzz
 
 logger = logging.getLogger(__name__)
+
+# Same threshold used for dimension fuzzy matching in query_service.py —
+# kept consistent so both metric and dimension matching behave the same way.
+FUZZY_THRESHOLD = 75
+
+
+def _metric_score(metric: str, text: str) -> int:
+    """
+    Scores how well a metric column name matches the question text,
+    handling underscore vs space mismatches.
+    e.g. "Sleep_Hours" vs "sleep hours in the question" → high score
+    even though the literal substring check would fail.
+    """
+    metric_clean = metric.lower().replace("_", " ")
+    return max(
+        fuzz.partial_ratio(metric_clean, text),
+        fuzz.partial_ratio(metric.lower(), text),
+    )
+
+
+def _best_fuzzy_metric(metrics: list[str], text: str) -> str | None:
+    if not metrics:
+        return None
+    scored = [(m, _metric_score(m, text)) for m in metrics]
+    logger.info(f"Metric fuzzy scores: {scored}")
+    best_metric, best_score = max(scored, key=lambda x: x[1])
+    if best_score >= FUZZY_THRESHOLD:
+        return best_metric
+    return None
 
 
 async def generate_query_plan(provider, question: str, schema_context: str, schema: dict):
@@ -65,11 +95,7 @@ Example output:
 
         logger.warning("Planner returned invalid output")
 
-        metric = None
-        for m in schema["metrics"]:
-            if m.lower() in question_lower:
-                metric = m
-                break
+        metric = _best_fuzzy_metric(schema["metrics"], question_lower)
 
         if not metric and schema["metrics"]:
             metric = schema["metrics"][0]
@@ -93,13 +119,14 @@ Example output:
         }
 
     # ── METRIC DETECTION FROM QUERY ───────────────────────────────────────────
+    # Uses fuzzy matching so "Sleep_Hours" matches question phrasing like
+    # "sleep hours" (space instead of underscore) — plain substring matching
+    # missed this entirely before.
 
-    if schema.get("metrics"):
-        for metric in schema["metrics"]:
-            if metric.lower() in question_lower:
-                plan["metric"] = metric
-                logger.info(f"Metric override from question: {metric}")
-                break
+    fuzzy_metric = _best_fuzzy_metric(schema.get("metrics", []), question_lower)
+    if fuzzy_metric:
+        plan["metric"] = fuzzy_metric
+        logger.info(f"Metric override from question: {fuzzy_metric}")
 
     if not plan.get("metric") and schema["metrics"]:
         plan["metric"] = schema["metrics"][0]

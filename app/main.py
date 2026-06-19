@@ -3,6 +3,8 @@ from app.api import test_llm
 from app.api import upload
 from app.api import query
 from app.api import datasets
+from app.api import feedback
+
 
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +29,7 @@ app.include_router(test_llm.router, prefix="/test")
 app.include_router(upload.router, prefix="/upload", tags=["Upload"])
 app.include_router(query.router, prefix="/query", tags=["Query"])
 app.include_router(datasets.router, prefix="/datasets/sample", tags=["Sample Datasets"])
+app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 @app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
     return {"status": "ok"}

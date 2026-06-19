@@ -35,14 +35,14 @@ MAX_FILE_SIZE_BYTES   = 10 * 1024 * 1024   # 10 MB hard limit
 MAX_MONGO_DOC_BYTES   = 14 * 1024 * 1024   # ~14 MB (Mongo limit is 16 MB)
 
 
-async def upload_dataset_service(file):
+async def upload_dataset_service(file, user_id: str):
     request_id = str(uuid.uuid4())[:8]   # short ID to correlate log lines
     t0 = time.perf_counter()
 
     def elapsed():
         return f"{time.perf_counter() - t0:.2f}s"
 
-    logger.info(f"[{request_id}] ── Upload started ──────────────────────────")
+    logger.info(f"[{request_id}] ── Upload started (user={user_id}) ──────────────────────────")
 
     # ── 1. Validate filename ─────────────────────────────────────────────────
     filename = file.filename
@@ -133,6 +133,7 @@ async def upload_dataset_service(file):
     # ── 6. Build MongoDB document ─────────────────────────────────────────────
     dataset_doc = {
         "dataset_id": dataset_id,
+        "user_id": user_id,
         "original_filename": filename,
         "columns": schema,
         "row_count": len(df),

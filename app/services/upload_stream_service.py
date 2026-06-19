@@ -66,6 +66,7 @@ def _error(message: str) -> str:
 async def upload_dataset_stream(
     filename: str,
     contents: bytes,
+    user_id: str = "",
 ) -> AsyncGenerator[str, None]:
     """
     Async generator that runs the full upload pipeline and
@@ -181,6 +182,7 @@ async def upload_dataset_stream(
         "row_count": row_count,
         "data": df.to_dict(orient="records"),
         "uploaded_at": datetime.utcnow(),
+        "user_id": user_id,
     }
 
     # Guard MongoDB 16MB limit

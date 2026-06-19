@@ -16,4 +16,7 @@ dependencies = [
     "uvicorn>=0.41.0",
     "openpyxl",
     "rapidfuzz>=3.14.5",
+    "clerk-backend-api>=5.0.7",
+    "pyjwt>=2.13.0",
+    "cryptography>=46.0.7",
 ]

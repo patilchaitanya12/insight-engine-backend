@@ -55,17 +55,55 @@ def extract_chart_hint(question_lower: str) -> str | None:
     return None
 
 
-async def run_query_service(dataset_id: str, question: str):
+async def _save_history(
+    user_id: str,
+    dataset_id: str,
+    question: str,
+    plan: dict | None,
+    execution_result: dict,
+    chart: dict,
+    insights: str,
+) -> str | None:
+    """
+    Always saves a query_history document — even for formula/difference
+    engine results — so every query result can receive feedback.
+
+    Returns the inserted document's _id as a string (query_id),
+    or None if the insert failed.
+    """
+    try:
+        doc = await db.query_history.insert_one({
+            "user_id": user_id,
+            "dataset_id": dataset_id,
+            "question": question,
+            "plan": plan,
+            "chart": chart,
+            "insights": insights,
+            "result_preview": execution_result.get("data", [])[:5],
+            "timestamp": datetime.utcnow()
+        })
+        inserted_id = str(doc.inserted_id)
+        logger.info(f"Saved query_history: _id={inserted_id} user={user_id} dataset={dataset_id}")
+        return inserted_id
+    except Exception as e:
+        logger.error(f"Failed to save query_history: {e}")
+        return None
+
+
+async def run_query_service(dataset_id: str, question: str, user_id: str):
 
     logger.info("===== NEW QUERY =====")
     logger.info(f"Question: {question}")
     logger.info(f"Dataset ID: {dataset_id}")
 
-    dataset = await db.datasets.find_one({"dataset_id": dataset_id})
+    dataset = await db.datasets.find_one({
+        "dataset_id": dataset_id,
+        "user_id": user_id,
+    })
 
     if not dataset:
-        logger.error("Dataset not found")
-        return {"error": "Dataset not found"}
+        logger.error(f"Dataset not found or not owned by user {user_id}")
+        return {"error": "Dataset not found", "query_id": None}
 
     df = pd.DataFrame(dataset["data"])
     logger.info(f"Dataset loaded with shape: {df.shape}")
@@ -92,9 +130,7 @@ async def run_query_service(dataset_id: str, question: str):
     # Extract chart hint once — used across all engines
     user_chart_hint = extract_chart_hint(question_lower)
 
-    # -------------------------------
     # Formula Engine
-    # -------------------------------
 
     formula_metric = None
 
@@ -137,20 +173,29 @@ async def run_query_service(dataset_id: str, question: str):
 
         insights = await generate_insights(provider, result, question)
 
+        chart = {
+            "chart_type": chart_type,
+            "x_column": dimension,
+            "y_column": formula_metric,
+            "group_by": group_by
+        }
+
+        query_id = await _save_history(
+            user_id, dataset_id, question,
+            plan={"metric": formula_metric, "dimension": dimension, "engine": "formula"},
+            execution_result=execution_result,
+            chart=chart,
+            insights=insights,
+        )
+
         return {
+            "query_id": query_id,
             "table": execution_result,
-            "chart": {
-                "chart_type": chart_type,
-                "x_column": dimension,
-                "y_column": formula_metric,
-                "group_by": group_by
-            },
+            "chart": chart,
             "insights": insights
         }
 
-    # -------------------------------
     # Difference Engine
-    # -------------------------------
 
     difference_keywords = ["difference", "gap", "variance", "compare"]
 
@@ -203,24 +248,33 @@ async def run_query_service(dataset_id: str, question: str):
 
             insights = await generate_insights(provider, result, question)
 
+            chart = {
+                "chart_type": chart_type,
+                "x_column": dimension,
+                "y_column": "Difference",
+                "group_by": group_by
+            }
+
+            query_id = await _save_history(
+                user_id, dataset_id, question,
+                plan={"metric_a": metric_a, "metric_b": metric_b, "dimension": dimension, "engine": "difference"},
+                execution_result=execution_result,
+                chart=chart,
+                insights=insights,
+            )
+
             return {
+                "query_id": query_id,
                 "table": execution_result,
-                "chart": {
-                    "chart_type": chart_type,
-                    "x_column": dimension,
-                    "y_column": "Difference",
-                    "group_by": group_by
-                },
+                "chart": chart,
                 "insights": insights
             }
 
-    # -------------------------------
     # Query Memory
-    # -------------------------------
 
     plan = None
 
-    similar = await search_similar_query(db, dataset_id, question)
+    similar = await search_similar_query(db, dataset_id, question, user_id=user_id)
 
     if similar and similar.get("plan"):
         cached_plan = similar["plan"]
@@ -369,7 +423,8 @@ async def run_query_service(dataset_id: str, question: str):
             logger.exception(e)
             return {
                 "error": "AI generated invalid analysis logic.",
-                "details": str(e)
+                "details": str(e),
+                "query_id": None,
             }
 
     result_df = pd.DataFrame(execution_result["data"]) if execution_result.get("data") else original_df
@@ -419,22 +474,26 @@ async def run_query_service(dataset_id: str, question: str):
 
     insights = await generate_insights(provider, result_df, question)
 
-    if plan and plan.get("metric"):
-        await db.query_history.insert_one({
-            "dataset_id": dataset_id,
-            "question": question,
-            "plan": plan,
-            "result_preview": execution_result["data"][:5],
-            "timestamp": datetime.utcnow()
-        })
+    chart = {
+        "chart_type": chart_type,
+        "x_column": x_column,
+        "y_column": y_column,
+        "group_by": plan.get("group_by") if plan else None
+    }
+
+    query_id = await _save_history(
+        user_id, dataset_id, question,
+        plan=plan,
+        execution_result=execution_result,
+        chart=chart,
+        insights=insights,
+    )
+
+    logger.info(f"===== RETURNING RESPONSE ===== query_id={query_id}")
 
     return {
+        "query_id": query_id,
         "table": execution_result,
-        "chart": {
-            "chart_type": chart_type,
-            "x_column": x_column,
-            "y_column": y_column,
-            "group_by": plan.get("group_by") if plan else None
-        },
+        "chart": chart,
         "insights": insights
     }

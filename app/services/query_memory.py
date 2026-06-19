@@ -5,10 +5,10 @@ def similarity(a, b):
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
-async def search_similar_query(db, dataset_id, question):
+async def search_similar_query(db, dataset_id, question, user_id: str):
 
     history = await db.query_history.find(
-        {"dataset_id": dataset_id}
+        {"dataset_id": dataset_id, "user_id": user_id}
     ).to_list(50)
 
     best_match = None

@@ -1,11 +1,12 @@
 import uuid
 import asyncio
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 
 from app.services.upload_service import upload_dataset_service
 from app.services.upload_stream_service import upload_dataset_stream
+from app.core.auth import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -13,21 +14,27 @@ router = APIRouter()
 
 # ── In-memory job store ───────────────────────────────────────────────────────
 # Stores raw file bytes temporarily between /start and /stream
-# Key: job_id, Value: {"filename": str, "contents": bytes}
+# Key: job_id, Value: {"filename": str, "contents": bytes, "user_id": str}
 _job_store: dict[str, dict] = {}
 _JOB_TTL_SECONDS = 60  # jobs expire after 60s if stream never connects
 
 
 # ── Original route (kept for backwards compatibility) ─────────────────────────
 @router.post("/")
-async def upload_dataset(file: UploadFile = File(...)):
-    result = await upload_dataset_service(file)
+async def upload_dataset(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id),
+):
+    result = await upload_dataset_service(file, user_id=user_id)
     return result
 
 
 # ── Phase 1: Accept file, store in memory, return job_id ─────────────────────
 @router.post("/start")
-async def upload_start(file: UploadFile = File(...)):
+async def upload_start(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id),
+):
     """
     Accepts the uploaded file, stores bytes in memory, returns a job_id.
     The client then opens GET /upload/stream/{job_id} to get SSE progress.
@@ -55,6 +62,7 @@ async def upload_start(file: UploadFile = File(...)):
     _job_store[job_id] = {
         "filename": filename,
         "contents": contents,
+        "user_id": user_id,
     }
 
     # Auto-cleanup after TTL
@@ -65,7 +73,7 @@ async def upload_start(file: UploadFile = File(...)):
 
     asyncio.create_task(_cleanup())
 
-    logger.info(f"Job {job_id} created for file: {filename} ({len(contents)} bytes)")
+    logger.info(f"Job {job_id} created for user {user_id}, file: {filename} ({len(contents)} bytes)")
 
     return {"job_id": job_id}
 
@@ -76,6 +84,10 @@ async def upload_stream(job_id: str):
     """
     Opens an SSE stream and runs the full upload pipeline,
     emitting progress events at each step.
+
+    Note: user_id is NOT taken from auth here because EventSource (SSE)
+    cannot send custom headers like Authorization. Instead, user_id is
+    retrieved from the job created in /start, which WAS authenticated.
     """
     job = _job_store.get(job_id)
 
@@ -87,12 +99,13 @@ async def upload_stream(job_id: str):
 
     filename = job["filename"]
     contents = job["contents"]
+    user_id = job["user_id"]
 
     # Remove from store — single use
     _job_store.pop(job_id, None)
 
     async def event_generator():
-        async for event in upload_dataset_stream(filename, contents):
+        async for event in upload_dataset_stream(filename, contents, user_id=user_id):
             yield event
 
     return StreamingResponse(

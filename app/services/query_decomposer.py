@@ -17,11 +17,15 @@ CRITICAL RULES:
 1. Return ONLY a valid JSON ARRAY. No other text.
 2. The outermost structure MUST be a JSON array [ ... ].
 3. Do NOT wrap the array inside an object like {{"steps": [...]}}.
-4. Each element must have a "task" field.
-5. If the question is simple, return a single-element array.
+4. Do NOT nest a list inside the array, e.g. [{{}}, [...]] is WRONG.
+5. Each element must have a "task" field.
+6. If the question is simple, return a single-element array.
 
 WRONG output (never do this):
 {{"steps": [{{"step": 1, "task": "..."}}], "task": "..."}}
+
+WRONG output (never do this either — nested list):
+[{{}}, [{{"step": 1, "task": "..."}}]]
 
 CORRECT output (always do this):
 [
@@ -61,10 +65,24 @@ User Question:
         logger.warning("Invalid decomposition output, fallback to single step")
         return [{"task": question}]
 
-    # Ensure each step has a task
+    # Flatten one level: LLM sometimes returns malformed shapes like
+    # [{}, [{...}, {...}]] — a list containing a nested list of steps
+    # instead of a flat array. Without this, the nested list gets
+    # silently dropped by the "not isinstance(step, dict)" check below,
+    # losing all the useful metric/dimension info it carried.
+    flattened = []
+    for item in steps:
+        if isinstance(item, list):
+            flattened.extend(item)
+        else:
+            flattened.append(item)
+
+    # Ensure each step has a task; drop empty placeholder dicts
     cleaned_steps = []
-    for step in steps:
+    for step in flattened:
         if not isinstance(step, dict):
+            continue
+        if not step:  # empty {} carries no useful info — skip it
             continue
         if "task" not in step or not step["task"]:
             step["task"] = question
