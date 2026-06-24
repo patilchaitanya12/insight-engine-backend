@@ -12,6 +12,7 @@ class FeedbackRequest(BaseModel):
     question: str
     rating: Literal["up", "down"]
     comment: str | None = None
+    target: Literal["insight", "chart"] = "insight"  # which surface the feedback is for
 
 
 router = APIRouter()
@@ -30,6 +31,7 @@ async def submit_feedback(
             question=request.question,
             rating=request.rating,
             comment=request.comment,
+            target=request.target,
         )
         return result
 

@@ -16,6 +16,7 @@ async def submit_feedback_service(
     question: str,
     rating: str,
     comment: str | None,
+    target: str = "insight",  # "insight" | "chart"
 ) -> dict:
     """
     Stores feedback linked back to the original query_history document.
@@ -54,6 +55,7 @@ async def submit_feedback_service(
         "question": question,
         "rating": rating,
         "comment": comment,
+        "target": target, 
         "timestamp": datetime.utcnow(),
     }
 
@@ -61,7 +63,7 @@ async def submit_feedback_service(
 
     logger.info(
         f"Feedback saved: user={user_id} rating={rating} "
-        f"query_history_id={query_history_id}"
+        f"target={target} query_history_id={query_history_id}"
     )
 
     return {
