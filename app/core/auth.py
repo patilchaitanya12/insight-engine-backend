@@ -3,7 +3,9 @@ Clerk JWT verification for FastAPI.
 
 Verifies the Bearer token sent by the frontend (via Clerk's getToken())
 against Clerk's public JWKS endpoint, and extracts the user_id (the
-JWT "sub" claim).
+JWT "sub" claim). Also keeps the `users` collection in sync with
+email/name pulled from the token, so other collections only need to
+store user_id and can join against `users` for display info.
 
 Usage in a route:
 
@@ -12,6 +14,11 @@ Usage in a route:
     @router.post("/")
     async def my_route(user_id: str = Depends(get_current_user_id)):
         ...
+
+Note: for the email/name to be present, add a custom claim to your
+Clerk session token (Dashboard -> Sessions -> Customize session token):
+
+    { "email": "{{user.primary_email_address}}", "name": "{{user.full_name}}" }
 """
 
 import logging
@@ -20,6 +27,7 @@ from jwt import PyJWKClient
 from fastapi import Header, HTTPException
 
 from app.core.config import settings
+from app.services.user_service import upsert_user
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +40,9 @@ async def get_current_user_id(authorization: str | None = Header(None)) -> str:
     Extracts and verifies the Clerk JWT from the Authorization header.
     Returns the Clerk user_id (the "sub" claim) on success.
     Raises 401 if the token is missing, malformed, or invalid.
+
+    As a side effect, upserts the user into the `users` collection
+    (email/name if present in the token claims, last_seen_at always).
     """
 
     if not authorization or not authorization.startswith("Bearer "):
@@ -59,6 +70,12 @@ async def get_current_user_id(authorization: str | None = Header(None)) -> str:
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Token missing user ID")
+
+    # Best-effort sync — only present if you've added the custom claims
+    # described in the module docstring above.
+    email = payload.get("email")
+    name = payload.get("name")
+    await upsert_user(user_id, email, name)
 
     return user_id
 
