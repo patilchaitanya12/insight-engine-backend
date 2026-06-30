@@ -232,12 +232,28 @@ Example output:
         # between e.g. "Age" and "Tenure_Years" (both scoring 100.0 on a
         # tenure question) was resolved arbitrarily by sort order, ignoring
         # that the decomposer had already correctly identified Tenure_Years.
-        if not is_correlation and decomposer_hint:
-            hint_metric = decomposer_hint.get("metric")
+        #
+        # Some decomposer steps omit "metric" entirely (e.g. a step that's
+        # just {"task": "calculate average monthly salary", "operation":
+        # "mean"} with no structured metric field). In that case fuzzy-match
+        # the step's own task text directly — "monthly salary" is right
+        # there in the string even though the structured field is empty.
+        if not is_correlation:
             tied_metrics = [m for m, s in metric_hits if s == metric_hits[0][1]]
-            if hint_metric in tied_metrics:
-                primary_metric = hint_metric
-                logger.info(f"Metric tie broken using decomposer hint: {hint_metric}")
+
+            if len(tied_metrics) > 1:
+                hint_metric = decomposer_hint.get("metric") if decomposer_hint else None
+
+                if hint_metric not in tied_metrics:
+                    step_task = (decomposer_hint or {}).get("task", "")
+                    if step_task:
+                        task_hits = _all_fuzzy_metrics(tied_metrics, step_task.lower())
+                        if task_hits:
+                            hint_metric = task_hits[0][0]
+
+                if hint_metric in tied_metrics:
+                    primary_metric = hint_metric
+                    logger.info(f"Metric tie broken using decomposer hint/task: {hint_metric}")
 
         plan["metric"] = primary_metric
         logger.info(f"Metric override from question: {primary_metric}")

@@ -327,10 +327,19 @@ async def run_query_service(dataset_id: str, question: str, user_id: str):
 
     execution_result = {"data": []}
     original_df = df.copy()  # preserve original — never mutate between steps
+    prior_hint: dict = {}
 
     for i, step in enumerate(steps[:2]):
 
         logger.info(f"Processing step: {step}")
+
+        # Multi-step decompositions sometimes split metric and operation
+        # across steps — e.g. step 1 carries {"metric": "Monthly_Salary"},
+        # step 2 only carries {"operation": "mean"} with no metric field at
+        # all. Fill in gaps from the previous step's hint so later steps
+        # don't lose context the decomposer already established.
+        merged_hint = {**prior_hint, **step}
+        prior_hint = merged_hint
 
         # Always plan against the original question, not the step sub-task,
         # so the planner has full schema context on every iteration.
@@ -340,7 +349,7 @@ async def run_query_service(dataset_id: str, question: str, user_id: str):
                 step.get("task", question),
                 schema_context,
                 schema,
-                decomposer_hint=step,
+                decomposer_hint=merged_hint,
                 metric_stats=metric_stats,
             )
 
