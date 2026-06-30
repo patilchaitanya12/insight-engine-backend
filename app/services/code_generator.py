@@ -16,6 +16,7 @@ def generate_pandas_code(plan: dict) -> str:
     metric = plan.get("metric")
     dimension = plan.get("dimension") or plan.get("dimensions")
     group_by = plan.get("group_by")
+    comparison = plan.get("comparison")
     aggregation = AGG_MAP.get(plan.get("aggregation", "sum"), "sum")
     top_k = plan.get("top_k")
     filters = plan.get("filters") or []
@@ -74,6 +75,22 @@ def generate_pandas_code(plan: dict) -> str:
     # validation
     if not metric:
         raise ValueError("No metric specified in the plan")
+
+    # ── CORRELATION / SCATTER: metric vs comparison, row-level, no groupby ──
+    # When "comparison" is set, this is a metric-vs-metric question (e.g.
+    # "how does performance relate to leaves taken"). Scatter plots need
+    # raw row-level pairs, not an aggregated group — grouping by one of the
+    # two metrics and aggregating the other would also crash if dimension
+    # ever collided with metric (same column name twice in reset_index).
+    if comparison:
+        code_lines.append(
+            f"result = df[['{metric}', '{comparison}']].dropna()"
+        )
+        if top_k:
+            code_lines.append(
+                f"result = result.sort_values('{metric}', ascending=False).head({top_k})"
+            )
+        return textwrap.dedent("\n".join(code_lines)).strip()
 
     if not dimension:
         raise ValueError("No dimension specified in the plan")

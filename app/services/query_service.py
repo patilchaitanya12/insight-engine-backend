@@ -122,6 +122,20 @@ async def run_query_service(dataset_id: str, question: str, user_id: str):
     schema = analyze_schema(df)
     logger.info(f"Schema detected: {schema}")
 
+    # Min/max per numeric metric — lets the planner tell a bounded scale
+    # (e.g. Performance_Score 0-5) apart from a genuinely additive metric
+    # (e.g. Monthly_Salary), instead of always defaulting aggregation to sum.
+    metric_stats = {}
+    for col in schema.get("metrics", []):
+        if col in df.columns:
+            series = pd.to_numeric(df[col], errors="coerce").dropna()
+            if not series.empty:
+                metric_stats[col] = {
+                    "min": float(series.min()),
+                    "max": float(series.max()),
+                }
+    logger.info(f"Metric stats: {metric_stats}")
+
     schema_context = build_schema_context(df)
     provider = get_llm_provider()
 
@@ -177,7 +191,8 @@ async def run_query_service(dataset_id: str, question: str, user_id: str):
             "chart_type": chart_type,
             "x_column": dimension,
             "y_column": formula_metric,
-            "group_by": group_by
+            "group_by": group_by,
+            "aggregation": "avg",  # formula metrics (efficiency, scrap rate, etc.) are ratios — never sum
         }
 
         query_id = await _save_history(
@@ -252,7 +267,8 @@ async def run_query_service(dataset_id: str, question: str, user_id: str):
                 "chart_type": chart_type,
                 "x_column": dimension,
                 "y_column": "Difference",
-                "group_by": group_by
+                "group_by": group_by,
+                "aggregation": "sum",
             }
 
             query_id = await _save_history(
@@ -323,7 +339,9 @@ async def run_query_service(dataset_id: str, question: str, user_id: str):
                 provider,
                 step.get("task", question),
                 schema_context,
-                schema
+                schema,
+                decomposer_hint=step,
+                metric_stats=metric_stats,
             )
 
         if not isinstance(plan, dict):
@@ -478,7 +496,8 @@ async def run_query_service(dataset_id: str, question: str, user_id: str):
         "chart_type": chart_type,
         "x_column": x_column,
         "y_column": y_column,
-        "group_by": plan.get("group_by") if plan else None
+        "group_by": plan.get("group_by") if plan else None,
+        "aggregation": plan.get("aggregation", "sum") if plan else "sum",
     }
 
     query_id = await _save_history(
