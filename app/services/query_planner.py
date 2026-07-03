@@ -4,19 +4,10 @@ from rapidfuzz import fuzz
 
 logger = logging.getLogger(__name__)
 
-# Same threshold used for dimension fuzzy matching in query_service.py —
-# kept consistent so both metric and dimension matching behave the same way.
 FUZZY_THRESHOLD = 75
 
-# Bounded-scale metrics (ratings, scores, indices) shouldn't default to
-# sum — summing a 0-5 score across rows just reflects row count, not
-# anything meaningful. Detected by name pattern; combined with actual
-# min/max range checks in _infer_aggregation below.
 BOUNDED_NAME_HINTS = ["score", "rating", "index", "rank", "satisfaction", "csat", "nps"]
 
-# Two-metric / correlation-style questions. Distinct from comparison_keywords
-# ("across", "by", "compare") which assume metric vs. categorical dimension.
-# These imply metric vs. metric — needs scatter, not bar.
 CORRELATION_KEYWORDS = [
     "relate to", "relation between", "relationship between", "correlate",
     "correlation", "vs each other", "against", "impact on", "effect on",
@@ -208,52 +199,21 @@ Example output:
             "top_k": None
         }
 
-    # ── CORRELATION DETECTION (metric vs metric) ────────────────────────────
-    # Must run BEFORE metric override below, since it changes how we
-    # interpret a tie between two equally-matched metrics.
 
     is_correlation = _detect_correlation_question(question_lower)
 
     # ── METRIC DETECTION FROM QUERY ───────────────────────────────────────────
-    # Uses fuzzy matching so "Sleep_Hours" matches question phrasing like
-    # "sleep hours" (space instead of underscore). Now returns ALL matches
-    # at/above threshold, not just the top one — a correlation question
-    # naturally mentions two metrics, and previously the second one was
-    # silently dropped by always taking max().
 
     metric_hits = _all_fuzzy_metrics(schema.get("metrics", []), question_lower)
 
     if metric_hits:
         primary_metric = metric_hits[0][0]
-
-        # Tie-break: if multiple metrics scored equally and this ISN'T a
-        # correlation question, prefer the decomposer's metric hint over
-        # whichever fuzzy match happened to sort first. Previously a tie
-        # between e.g. "Age" and "Tenure_Years" (both scoring 100.0 on a
-        # tenure question) was resolved arbitrarily by sort order, ignoring
-        # that the decomposer had already correctly identified Tenure_Years.
-        #
-        # Some decomposer steps omit "metric" entirely (e.g. a step that's
-        # just {"task": "calculate average monthly salary", "operation":
-        # "mean"} with no structured metric field). In that case fuzzy-match
-        # the step's own task text directly — "monthly salary" is right
-        # there in the string even though the structured field is empty.
-        if not is_correlation:
+        if not is_correlation and decomposer_hint:
+            hint_metric = decomposer_hint.get("metric")
             tied_metrics = [m for m, s in metric_hits if s == metric_hits[0][1]]
-
-            if len(tied_metrics) > 1:
-                hint_metric = decomposer_hint.get("metric") if decomposer_hint else None
-
-                if hint_metric not in tied_metrics:
-                    step_task = (decomposer_hint or {}).get("task", "")
-                    if step_task:
-                        task_hits = _all_fuzzy_metrics(tied_metrics, step_task.lower())
-                        if task_hits:
-                            hint_metric = task_hits[0][0]
-
-                if hint_metric in tied_metrics:
-                    primary_metric = hint_metric
-                    logger.info(f"Metric tie broken using decomposer hint/task: {hint_metric}")
+            if hint_metric in tied_metrics:
+                primary_metric = hint_metric
+                logger.info(f"Metric tie broken using decomposer hint: {hint_metric}")
 
         plan["metric"] = primary_metric
         logger.info(f"Metric override from question: {primary_metric}")
@@ -270,8 +230,7 @@ Example output:
                     f"comparison={secondary_metric}, chart_type=scatter"
                 )
 
-    # If the LLM/fuzzy match missed it but the decomposer already figured
-    # out the second variable, trust that instead of leaving it blank.
+    
     if is_correlation and not plan.get("comparison") and decomposer_hint:
         hint_dim = decomposer_hint.get("dimension")
         if hint_dim and hint_dim in schema.get("metrics", []) and hint_dim != plan.get("metric"):
@@ -279,15 +238,21 @@ Example output:
             plan["chart_type"] = "scatter"
             logger.info(f"Correlation comparison filled from decomposer hint: {hint_dim}")
 
-    # Safety net: a scatter plan's "dimension" field is irrelevant once
-    # "comparison" is set (scatter is metric vs comparison, not metric vs
-    # dimension). If the raw LLM output or earlier logic left dimension
-    # equal to metric, code_generator would try to groupby and reset_index
-    # on a column with the same name as itself, crashing pandas. Clear it.
+    
     if is_correlation and plan.get("comparison"):
         if plan.get("dimension") == plan.get("metric"):
             plan["dimension"] = None
             logger.info("Cleared dimension — collided with metric in correlation plan")
+
+
+    if plan.get("comparison") and plan["comparison"] in schema.get("dimensions", []):
+        if not plan.get("group_by"):
+            plan["group_by"] = plan["comparison"]
+            logger.info(f"Converted dimension comparison to group_by: {plan['comparison']}")
+        plan["comparison"] = None
+        if plan.get("chart_type") == "scatter":
+            plan["chart_type"] = "grouped_bar"
+            logger.info("Corrected chart_type scatter → grouped_bar (comparison was a dimension)")
 
     if not plan.get("metric") and schema["metrics"]:
         if decomposer_hint:
@@ -311,9 +276,6 @@ Example output:
             logger.info("Trend query detected")
 
     # ── COMPARISON DETECTION (metric vs categorical dimension) ────────────────
-    # Skipped when this is actually a metric-vs-metric correlation question —
-    # otherwise "by" inside phrasing like "broken down by leaves taken" would
-    # wrongly force dimension back to a categorical column.
 
     comparison_keywords = ["across", "by", "compare", "vs"]
 
@@ -324,9 +286,6 @@ Example output:
             logger.info("Comparison query detected")
 
     # ── DECOMPOSER HINT FOR DIMENSION ──────────────────────────────────────────
-    # If the decomposer identified a dimension that's a real column and
-    # nothing more specific has overridden it above, prefer it over the
-    # planner LLM's own (often generic) first-categorical-column guess.
 
     if decomposer_hint and not is_correlation:
         hint_dim = decomposer_hint.get("dimension")

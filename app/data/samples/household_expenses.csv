@@ -1,19 +1,19 @@
 Date,Category,Member,Amount,Payment_Mode,Is_Essential
-2024-01-01,Groceries,Chaitanya,4443,Cash,Yes
+2024-01-01,Groceries,Me,4443,Cash,Yes
 2024-01-01,Rent,Dad,15304,UPI,Yes
 2024-01-01,Electricity,Mom,2099,UPI,Yes
-2024-01-01,Internet,Chaitanya,879,Cash,Yes
+2024-01-01,Internet,Me,879,Cash,Yes
 2024-01-01,Transport,Sister,1932,Cash,No
-2024-01-01,Dining Out,Chaitanya,2634,Cash,No
+2024-01-01,Dining Out,Me,2634,Cash,No
 2024-01-01,Entertainment,Mom,1244,UPI,No
-2024-01-01,Healthcare,Chaitanya,1480,UPI,Yes
+2024-01-01,Healthcare,Me,1480,UPI,Yes
 2024-01-01,Clothing,Sister,2201,UPI,No
 2024-01-01,Savings,Sister,5770,Credit Card,Yes
-2024-02-01,Groceries,Chaitanya,3646,UPI,Yes
+2024-02-01,Groceries,Me,3646,UPI,Yes
 2024-02-01,Rent,Sister,15419,Credit Card,Yes
 2024-02-01,Electricity,Dad,2189,UPI,Yes
 2024-02-01,Internet,Mom,725,Credit Card,Yes
-2024-02-01,Transport,Chaitanya,1960,Cash,No
+2024-02-01,Transport,Me,1960,Cash,No
 2024-02-01,Dining Out,Sister,2675,Cash,No
 2024-02-01,Entertainment,Dad,1428,Credit Card,No
 2024-02-01,Healthcare,Dad,1275,Cash,Yes
@@ -21,7 +21,7 @@ Date,Category,Member,Amount,Payment_Mode,Is_Essential
 2024-02-01,Savings,Sister,4728,Cash,Yes
 2024-03-01,Groceries,Dad,4977,Credit Card,Yes
 2024-03-01,Rent,Mom,10437,Cash,Yes
-2024-03-01,Electricity,Chaitanya,1703,UPI,Yes
+2024-03-01,Electricity,Me,1703,UPI,Yes
 2024-03-01,Internet,Dad,787,Cash,Yes
 2024-03-01,Transport,Mom,2262,Cash,No
 2024-03-01,Dining Out,Sister,3578,Credit Card,No
@@ -33,10 +33,10 @@ Date,Category,Member,Amount,Payment_Mode,Is_Essential
 2024-04-01,Rent,Mom,10623,Debit Card,Yes
 2024-04-01,Electricity,Sister,1499,Credit Card,Yes
 2024-04-01,Internet,Mom,1020,Credit Card,Yes
-2024-04-01,Transport,Chaitanya,2822,UPI,No
-2024-04-01,Dining Out,Chaitanya,3613,Credit Card,No
+2024-04-01,Transport,Me,2822,UPI,No
+2024-04-01,Dining Out,Me,3613,Credit Card,No
 2024-04-01,Entertainment,Sister,1428,Credit Card,No
-2024-04-01,Healthcare,Chaitanya,1019,UPI,Yes
+2024-04-01,Healthcare,Me,1019,UPI,Yes
 2024-04-01,Clothing,Dad,2284,UPI,No
 2024-04-01,Savings,Sister,5100,Debit Card,Yes
 2024-05-01,Groceries,Sister,3875,UPI,Yes
@@ -45,77 +45,77 @@ Date,Category,Member,Amount,Payment_Mode,Is_Essential
 2024-05-01,Internet,Sister,1004,Debit Card,Yes
 2024-05-01,Transport,Dad,2045,UPI,No
 2024-05-01,Dining Out,Mom,3394,Debit Card,No
-2024-05-01,Entertainment,Chaitanya,1434,Cash,No
-2024-05-01,Healthcare,Chaitanya,1272,UPI,Yes
+2024-05-01,Entertainment,Me,1434,Cash,No
+2024-05-01,Healthcare,Me,1272,UPI,Yes
 2024-05-01,Clothing,Mom,2147,Debit Card,No
-2024-05-01,Savings,Chaitanya,4462,Debit Card,Yes
+2024-05-01,Savings,Me,4462,Debit Card,Yes
 2024-06-01,Groceries,Sister,5782,Debit Card,Yes
 2024-06-01,Rent,Dad,14251,Cash,Yes
-2024-06-01,Electricity,Chaitanya,2286,Credit Card,Yes
+2024-06-01,Electricity,Me,2286,Credit Card,Yes
 2024-06-01,Internet,Dad,998,Cash,Yes
 2024-06-01,Transport,Dad,2418,Debit Card,No
 2024-06-01,Dining Out,Mom,3783,Debit Card,No
-2024-06-01,Entertainment,Chaitanya,1266,Credit Card,No
+2024-06-01,Entertainment,Me,1266,Credit Card,No
 2024-06-01,Healthcare,Mom,1078,Cash,Yes
 2024-06-01,Clothing,Dad,1645,UPI,No
 2024-06-01,Savings,Mom,4813,Credit Card,Yes
 2024-07-01,Groceries,Mom,4475,Cash,Yes
 2024-07-01,Rent,Dad,11228,Debit Card,Yes
-2024-07-01,Electricity,Chaitanya,2186,Cash,Yes
+2024-07-01,Electricity,Me,2186,Cash,Yes
 2024-07-01,Internet,Dad,783,Credit Card,Yes
 2024-07-01,Transport,Mom,2069,Cash,No
 2024-07-01,Dining Out,Mom,3214,Cash,No
-2024-07-01,Entertainment,Chaitanya,1306,Debit Card,No
-2024-07-01,Healthcare,Chaitanya,1441,UPI,Yes
+2024-07-01,Entertainment,Me,1306,Debit Card,No
+2024-07-01,Healthcare,Me,1441,UPI,Yes
 2024-07-01,Clothing,Mom,1675,Debit Card,No
 2024-07-01,Savings,Mom,6467,Credit Card,Yes
 2024-08-01,Groceries,Sister,5338,UPI,Yes
 2024-08-01,Rent,Mom,10792,Credit Card,Yes
 2024-08-01,Electricity,Sister,1445,Credit Card,Yes
 2024-08-01,Internet,Sister,966,Debit Card,Yes
-2024-08-01,Transport,Chaitanya,2538,UPI,No
+2024-08-01,Transport,Me,2538,UPI,No
 2024-08-01,Dining Out,Mom,3494,Cash,No
 2024-08-01,Entertainment,Dad,1778,Cash,No
 2024-08-01,Healthcare,Mom,1004,UPI,Yes
-2024-08-01,Clothing,Chaitanya,1958,Cash,No
-2024-08-01,Savings,Chaitanya,4290,UPI,Yes
-2024-09-01,Groceries,Chaitanya,5542,Cash,Yes
+2024-08-01,Clothing,Me,1958,Cash,No
+2024-08-01,Savings,Me,4290,UPI,Yes
+2024-09-01,Groceries,Me,5542,Cash,Yes
 2024-09-01,Rent,Dad,13340,Cash,Yes
 2024-09-01,Electricity,Mom,1738,Credit Card,Yes
 2024-09-01,Internet,Sister,665,UPI,Yes
 2024-09-01,Transport,Mom,2102,Debit Card,No
 2024-09-01,Dining Out,Mom,2888,Debit Card,No
 2024-09-01,Entertainment,Sister,1747,UPI,No
-2024-09-01,Healthcare,Chaitanya,1343,Cash,Yes
+2024-09-01,Healthcare,Me,1343,Cash,Yes
 2024-09-01,Clothing,Sister,2487,Credit Card,No
 2024-09-01,Savings,Sister,5181,Debit Card,Yes
 2024-10-01,Groceries,Sister,3869,Cash,Yes
-2024-10-01,Rent,Chaitanya,13879,Cash,Yes
+2024-10-01,Rent,Me,13879,Cash,Yes
 2024-10-01,Electricity,Sister,2125,Credit Card,Yes
-2024-10-01,Internet,Chaitanya,865,UPI,Yes
+2024-10-01,Internet,Me,865,UPI,Yes
 2024-10-01,Transport,Mom,2608,UPI,No
 2024-10-01,Dining Out,Sister,3141,UPI,No
 2024-10-01,Entertainment,Sister,1592,UPI,No
 2024-10-01,Healthcare,Dad,1217,Debit Card,Yes
 2024-10-01,Clothing,Mom,1625,Cash,No
 2024-10-01,Savings,Sister,4270,Cash,Yes
-2024-11-01,Groceries,Chaitanya,3671,Cash,Yes
-2024-11-01,Rent,Chaitanya,13418,UPI,Yes
+2024-11-01,Groceries,Me,3671,Cash,Yes
+2024-11-01,Rent,Me,13418,UPI,Yes
 2024-11-01,Electricity,Mom,1723,Debit Card,Yes
 2024-11-01,Internet,Sister,843,Debit Card,Yes
 2024-11-01,Transport,Mom,2758,Debit Card,No
-2024-11-01,Dining Out,Chaitanya,2774,UPI,No
+2024-11-01,Dining Out,Me,2774,UPI,No
 2024-11-01,Entertainment,Sister,1508,Cash,No
 2024-11-01,Healthcare,Sister,1413,Credit Card,Yes
 2024-11-01,Clothing,Sister,1829,Credit Card,No
 2024-11-01,Savings,Sister,4192,Debit Card,Yes
 2024-12-01,Groceries,Mom,4252,UPI,Yes
 2024-12-01,Rent,Dad,10567,UPI,Yes
-2024-12-01,Electricity,Chaitanya,2277,Cash,Yes
+2024-12-01,Electricity,Me,2277,Cash,Yes
 2024-12-01,Internet,Dad,963,Cash,Yes
-2024-12-01,Transport,Chaitanya,2457,Debit Card,No
+2024-12-01,Transport,Me,2457,Debit Card,No
 2024-12-01,Dining Out,Mom,3707,Cash,No
-2024-12-01,Entertainment,Chaitanya,1803,UPI,No
-2024-12-01,Healthcare,Chaitanya,1072,Cash,Yes
+2024-12-01,Entertainment,Me,1803,UPI,No
+2024-12-01,Healthcare,Me,1072,Cash,Yes
 2024-12-01,Clothing,Mom,2493,Debit Card,No
-2024-12-01,Savings,Chaitanya,5348,UPI,Yes
+2024-12-01,Savings,Me,5348,UPI,Yes

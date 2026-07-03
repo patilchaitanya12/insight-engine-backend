@@ -335,9 +335,8 @@ async def run_query_service(dataset_id: str, question: str, user_id: str):
 
         # Multi-step decompositions sometimes split metric and operation
         # across steps — e.g. step 1 carries {"metric": "Monthly_Salary"},
-        # step 2 only carries {"operation": "mean"} with no metric field at
-        # all. Fill in gaps from the previous step's hint so later steps
-        # don't lose context the decomposer already established.
+        # step 2 only carries {"operation": "mean"} with no metric field.
+        # Merge with previous step's hint so context is never lost.
         merged_hint = {**prior_hint, **step}
         prior_hint = merged_hint
 
