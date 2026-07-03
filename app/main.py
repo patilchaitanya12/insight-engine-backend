@@ -4,6 +4,7 @@ from app.api import upload
 from app.api import query
 from app.api import datasets
 from app.api import feedback
+from app.api.app_feedback import router as app_feedback_router
 
 
 
@@ -30,6 +31,7 @@ app.include_router(upload.router, prefix="/upload", tags=["Upload"])
 app.include_router(query.router, prefix="/query", tags=["Query"])
 app.include_router(datasets.router, prefix="/datasets/sample", tags=["Sample Datasets"])
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
+app.include_router(app_feedback_router, prefix="/feedback/app", tags=["app_feedback"])
 @app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
     return {"status": "ok"}
